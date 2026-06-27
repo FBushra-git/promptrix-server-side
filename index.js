@@ -562,6 +562,28 @@ app.get("/api/users", verifyToken, verifyAdmin, async (req, res) => {
 });
 
 
+// Protected user profile fetch.
+// User can fetch own profile. Admin can fetch anyone.
+app.get("/api/users/:email", verifyToken, async (req, res) => {
+  try {
+    const email = req.params.email;
+    const isAdmin = normalizeRole(req.user.role) === "admin";
+
+    if (req.user.email !== email && !isAdmin) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+
+    const user = await userCollection.findOne({ email });
+    res.send(user || {});
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch user",
+      error: error.message,
+    });
+  }
+});
+
 
 
 
