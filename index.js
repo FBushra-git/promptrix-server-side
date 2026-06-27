@@ -609,7 +609,31 @@ app.patch("/api/users/:email/role", verifyToken, verifyAdmin, async (req, res) =
   }
 });
 
+// STATS / AGGREGATION
 
+app.get("/api/stats", async (req, res) => {
+  try {
+    const result = await promptCollection
+      .aggregate([
+        {
+          $group: {
+            _id: null,
+            totalCopies: { $sum: "$copyCount" },
+            totalPrompts: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
+
+    res.send(result[0] || { totalCopies: 0, totalPrompts: 0 });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to load stats",
+      error: error.message,
+    });
+  }
+});
 
 
 
