@@ -840,7 +840,53 @@ app.get("/api/payments", verifyToken,verifyAdmin, async (req, res) => {
   }
 });
 
+// Payment success route can call this after Stripe success.
+// It uses body email because Stripe success page sends verified checkout data from your frontend flow.
+app.post("/api/subscriptions", async (req, res) => {
+  try {
+    const data = req.body;
 
+    const subscriptionInfo = {
+      email: data.email,
+      name: data.name,
+      isPremium: true,
+      subscription: "premium",
+      paymentIntentId: data.paymentIntentId,
+      stripeSessionId: data.stripeSessionId,
+      amount: data.amount,
+      currency: data.currency || "usd",
+      date: data.date || new Date().toISOString(),
+      createdAt: new Date(),
+    };
+
+    await paymentCollection.insertOne(subscriptionInfo);
+
+    const updateResult = await userCollection.updateOne(
+      { email: data.email },
+      {
+        $set: {
+          isPremium: true,
+          subscription: "premium",
+          premiumSince: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+
+    res.send({
+      success: true,
+      message: "Premium access activated",
+      updateResult,
+      subscription: subscriptionInfo,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to activate premium",
+      error: error.message,
+    });
+  }
+});
 
 
 
