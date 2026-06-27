@@ -635,6 +635,77 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
+// BOOKMARKS
+
+app.get("/api/bookmarks", verifyToken, async (req, res) => {
+  try {
+    const query = {};
+    const isAdmin = normalizeRole(req.user.role) === "admin";
+
+    if (req.query.email && isAdmin) {
+      query.userEmail = req.query.email;
+    } else {
+      query.userEmail = req.user.email;
+    }
+
+    const bookmarks = await bookmarkCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.json(bookmarks);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookmarks",
+      error: error.message,
+    });
+  }
+});
+
+app.post("/api/bookmarks/toggle", verifyToken, async (req, res) => {
+  try {
+    const { promptId } = req.body;
+
+    const query = {
+      userEmail: req.user.email,
+      promptId,
+    };
+
+    const existing = await bookmarkCollection.findOne(query);
+
+    if (existing) {
+      await bookmarkCollection.deleteOne({ _id: existing._id });
+
+      return res.json({
+        success: true,
+        action: "removed",
+        bookmarked: false,
+      });
+    }
+
+    await bookmarkCollection.insertOne({
+      userId: req.user._id?.toString() || req.user.id || null,
+      userEmail: req.user.email,
+      userName: req.user.name || null,
+      promptId,
+      createdAt: new Date(),
+    });
+
+    res.json({
+      success: true,
+      action: "added",
+      bookmarked: true,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle bookmark",
+      error: error.message,
+    });
+  }
+});
+
 
 
 
