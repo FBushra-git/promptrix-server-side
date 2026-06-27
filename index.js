@@ -706,6 +706,59 @@ app.post("/api/bookmarks/toggle", verifyToken, async (req, res) => {
   }
 });
 
+// REVIEWS
+
+app.get("/api/reviews", async (req, res) => {
+  try {
+    const { promptId, email } = req.query;
+    const query = {};
+
+    if (promptId) query.promptId = promptId;
+    if (email) query.email = email;
+
+    const reviews = await reviewCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.json(reviews);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch reviews",
+      error: error.message,
+    });
+  }
+});
+
+app.post("/api/reviews", verifyToken, async (req, res) => {
+  try {
+    const review = {
+      ...req.body,
+      name: req.user.name || req.body.name,
+      email: req.user.email,
+      rating: Number(req.body.rating || 0),
+      date: req.body.date || new Date().toISOString(),
+      createdAt: new Date(),
+    };
+
+    const result = await reviewCollection.insertOne(review);
+
+    res.json({
+      success: true,
+      review: {
+        _id: result.insertedId,
+        ...review,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to save review",
+      error: error.message,
+    });
+  }
+});
 
 
 
