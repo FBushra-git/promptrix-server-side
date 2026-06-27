@@ -584,6 +584,31 @@ app.get("/api/users/:email", verifyToken, async (req, res) => {
   }
 });
 
+// Admin only: change role.
+app.patch("/api/users/:email/role", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { role } = req.body;
+
+    if (!["user", "creator", "admin", "User", "Creator", "Admin"].includes(role)) {
+      return res.status(400).send({ message: "Invalid role" });
+    }
+
+    const result = await userCollection.updateOne(
+      { email },
+      { $set: { role } }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to update role",
+      error: error.message,
+    });
+  }
+});
+
 
 
 
