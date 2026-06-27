@@ -781,7 +781,33 @@ app.get("/api/reports", verifyToken, verifyAdmin, async (req, res) => {
 });
 
 
+// Logged-in users can report prompts.
+app.post("/api/reports", verifyToken, async (req, res) => {
+  try {
+    const report = {
+      promptId: req.body.promptId,
+      promptTitle: req.body.promptTitle,
+      creatorEmail: req.body.creatorEmail,
+      creatorName: req.body.creatorName,
+      reporterEmail: req.user.email,
+      reporterName: req.user.name || req.body.reporterName,
+      reason: req.body.reason,
+      description: req.body.description || "",
+      status: "open",
+      createdAt: new Date(),
+    };
 
+    const result = await reportCollection.insertOne(report);
+
+    res.send({
+      success: true,
+      insertedId: result.insertedId,
+      report,
+    });
+  } catch (error) {
+    res.status(500).send({ error: "Failed to save report" });
+  }
+});
 
 
 
