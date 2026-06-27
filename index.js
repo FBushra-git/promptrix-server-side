@@ -422,7 +422,61 @@ app.post("/api/prompts", verifyToken, async (req, res) => {
   }
 });
 
+// Protected prompt update.
+// Creator can update own prompt, admin can update any.
+// Any creator edit sends prompt back to pending and hidden.
+app.patch("/api/prompts/:id", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
 
+    if (!isValidObjectId(id)) {
+      return res.status(400).send({ message: "Invalid prompt id" });
+    }
+
+    const prompt = await promptCollection.findOne({ _id: toObjectId(id) });
+
+    if (!prompt) {
+      return res.status(404).send({ message: "Prompt not found" });
+    }
+
+    const isOwner = prompt.creatorEmail === req.user.email;
+    const isAdmin = normalizeRole(req.user.role) === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+
+    const safeUpdate = {
+      ...updateData,
+      updatedAt: new Date(),
+    };
+
+    // Creator edits must be reviewed again.
+    if (!isAdmin) {
+      safeUpdate.status = "pending";
+      safeUpdate.isVisible = false;
+      safeUpdate.rejectionFeedback = "";
+    }
+
+    delete safeUpdate._id;
+    delete safeUpdate.creatorEmail;
+    delete safeUpdate.copyCount;
+
+    const result = await promptCollection.updateOne(
+      { _id: toObjectId(id) },
+      { $set: safeUpdate }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to update prompt",
+      error: error.message,
+    });
+  }
+});
 
 
 
