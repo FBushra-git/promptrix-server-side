@@ -761,7 +761,24 @@ app.post("/api/reviews", verifyToken, async (req, res) => {
 });
 
 
+// REPORTS
 
+// Admin only: view all reports.
+app.get("/api/reports", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const reports = await reportCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(reports);
+  } catch (error) {
+    res.status(500).send({
+      message: "Failed to load reports",
+      error: error.message,
+    });
+  }
+});
 
 
 
