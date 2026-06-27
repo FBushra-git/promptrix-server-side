@@ -536,7 +536,30 @@ app.patch("/api/prompts/:id/increment-copy", verifyToken, async (req, res) => {
   }
 });
 
+// USERS
+// Admin only: all users table.
+app.get("/api/users", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const query = {};
 
+    if (req.query.role) {
+      query.role = req.query.role;
+    }
+
+    const result = await userCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch users",
+      error: error.message,
+    });
+  }
+});
 
 
 
