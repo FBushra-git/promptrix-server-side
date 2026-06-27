@@ -810,7 +810,35 @@ app.post("/api/reports", verifyToken, async (req, res) => {
 });
 
 
+// Protected payments.
+// Admin can see all. Normal users only see their own.
+app.get("/api/payments", verifyToken,verifyAdmin, async (req, res) => {
+  try {
+    const query = {};
+    const isAdmin = normalizeRole(req.user.role) === "admin";
 
+    if (isAdmin && req.query.email) {
+      query.email = req.query.email;
+    }
+
+    if (!isAdmin) {
+      query.email = req.user.email;
+    }
+
+    const payments = await paymentCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(payments);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to fetch payments",
+      error: error.message,
+    });
+  }
+});
 
 
 
