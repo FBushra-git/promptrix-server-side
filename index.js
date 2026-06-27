@@ -478,6 +478,64 @@ app.patch("/api/prompts/:id", verifyToken, async (req, res) => {
   }
 });
 
+// Protected prompt delete.
+// Creator can delete own prompt, admin can delete any.
+app.delete("/api/prompts/:id", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).send({ message: "Invalid prompt id" });
+    }
+
+    const prompt = await promptCollection.findOne({ _id: toObjectId(id) });
+
+    if (!prompt) {
+      return res.status(404).send({ message: "Prompt not found" });
+    }
+
+    const isOwner = prompt.creatorEmail === req.user.email;
+    const isAdmin = normalizeRole(req.user.role) === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+
+    const result = await promptCollection.deleteOne({ _id: toObjectId(id) });
+
+    await bookmarkCollection.deleteMany({ promptId: id });
+    await reviewCollection.deleteMany({ promptId: id });
+    await reportCollection.deleteMany({ promptId: id });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Failed to delete prompt",
+      error: error.message,
+    });
+  }
+});
+
+app.patch("/api/prompts/:id/increment-copy", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).send({ message: "Invalid prompt id" });
+    }
+
+    const result = await promptCollection.updateOne(
+      { _id: toObjectId(id) },
+      { $inc: { copyCount: 1 } }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to increment copy count" });
+  }
+});
+
 
 
 
