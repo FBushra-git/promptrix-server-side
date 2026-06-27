@@ -890,11 +890,234 @@ app.post("/api/subscriptions", async (req, res) => {
 
 
 
+// ADMIN
 
+app.get("/api/admin/stats", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const [totalUsers, totalPrompts, totalReviews, promptStats] =
+      await Promise.all([
+        userCollection.countDocuments(),
+        promptCollection.countDocuments(),
+        reviewCollection.countDocuments(),
+        promptCollection
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalCopies: { $sum: "$copyCount" },
+              },
+            },
+          ])
+          .toArray(),
+      ]);
 
+    res.send({
+      totalUsers,
+      totalPrompts,
+      totalReviews,
+      totalCopies: promptStats[0]?.totalCopies || 0,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: "Failed to load admin stats",
+      error: error.message,
+    });
+  }
+});
 
-// PAYMENTS / SUBSCRIPTION
+// Admin approves/rejects/pends prompts.
+// Approved prompts become visible. Rejected/pending prompts stay hidden.
+app.patch(
+  "/api/admin/prompts/:id/status",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { status, rejectionFeedback } = req.body;
 
+      if (!isValidObjectId(id)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid prompt id",
+        });
+      }
+
+      if (!["approved", "rejected", "pending"].includes(status)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid prompt status",
+        });
+      }
+
+      if (status === "rejected" && !rejectionFeedback?.trim()) {
+        return res.status(400).send({
+          success: false,
+          message: "Rejection feedback is required",
+        });
+      }
+
+      const updateDoc = {
+        status,
+        reviewedAt: new Date(),
+        reviewedBy: req.user.email,
+      };
+
+      if (status === "approved") {
+        updateDoc.isVisible = true;
+        updateDoc.rejectionFeedback = "";
+      }
+
+      if (status === "rejected") {
+        updateDoc.isVisible = false;
+        updateDoc.rejectionFeedback = rejectionFeedback;
+      }
+
+      if (status === "pending") {
+        updateDoc.isVisible = false;
+      }
+
+      const result = await promptCollection.updateOne(
+        { _id: toObjectId(id) },
+        { $set: updateDoc }
+      );
+
+      res.send({
+        success: true,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
+    } catch (error) {
+      res.status(500).send({
+        success: false,
+        message: "Failed to update prompt status",
+        error: error.message,
+      });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/prompts/:id/feature",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { featured } = req.body;
+
+      if (!isValidObjectId(id)) {
+        return res.status(400).send({ message: "Invalid prompt id" });
+      }
+
+      const result = await promptCollection.updateOne(
+        { _id: toObjectId(id) },
+        { $set: { featured: Boolean(featured) } }
+      );
+
+      res.send({ success: true, result });
+    } catch (error) {
+      res.status(500).send({
+        message: "Failed to feature prompt",
+        error: error.message,
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/prompts/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+
+      if (!isValidObjectId(id)) {
+        return res.status(400).send({ message: "Invalid prompt id" });
+      }
+
+      const promptResult = await promptCollection.deleteOne({
+        _id: toObjectId(id),
+      });
+
+      await bookmarkCollection.deleteMany({ promptId: id });
+      await reviewCollection.deleteMany({ promptId: id });
+      await reportCollection.deleteMany({ promptId: id });
+
+      res.send({
+        success: true,
+        result: promptResult,
+      });
+    } catch (error) {
+      res.status(500).send({
+        message: "Failed to delete prompt",
+        error: error.message,
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/users/:email",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const email = req.params.email;
+
+      const result = await userCollection.deleteOne({ email });
+
+      await promptCollection.deleteMany({ creatorEmail: email });
+      await bookmarkCollection.deleteMany({ userEmail: email });
+      await reviewCollection.deleteMany({ email });
+      await paymentCollection.deleteMany({ email });
+      await reportCollection.deleteMany({ reporterEmail: email });
+
+      res.send({ success: true, result });
+    } catch (error) {
+      res.status(500).send({
+        message: "Failed to delete user",
+        error: error.message,
+      });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/reports/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { status, adminNote } = req.body;
+
+      if (!isValidObjectId(id)) {
+        return res.status(400).send({ message: "Invalid report id" });
+      }
+
+      const result = await reportCollection.updateOne(
+        { _id: toObjectId(id) },
+        {
+          $set: {
+            status,
+            adminNote: adminNote || "",
+            reviewedAt: new Date(),
+            reviewedBy: req.user.email,
+          },
+        }
+      );
+
+      res.send({ success: true, result });
+    } catch (error) {
+      res.status(500).send({
+        message: "Failed to update report",
+        error: error.message,
+      });
+    }
+  }
+);
 
 
 
