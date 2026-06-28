@@ -175,15 +175,21 @@ const verifyToken = async (req, res, next) => {
       };
     }
 
-    req.user = {
-      ...authUser,
-      ...appUser,
-      email: appUser.email || authUser.email,
-      name: appUser.name || authUser.name,
-      role: appUser.role || "user",
-      isPremium: appUser.isPremium || false,
-      subscription: appUser.subscription || "free",
-    };
+   req.user = {
+  ...authUser,
+  ...appUser,
+
+  // force important app fields from users collection
+  _id: appUser._id,
+  email: appUser.email,
+  name: appUser.name || authUser.name,
+  image: appUser.image || authUser.image || "",
+  role: appUser.role || "user",
+  isPremium: appUser.isPremium || false,
+  subscription: appUser.subscription || "free",
+  premiumSince: appUser.premiumSince || null,
+  createdAt: appUser.createdAt,
+};
      console.log(req.user)
     next();
   } catch (error) {
@@ -1119,11 +1125,14 @@ app.patch(
   }
 );
 
+app.get("/profile", async(req, res)=>{
+const email = req.headers.email;
+const result = await userCollection.findOne({email});
+res.send(result);
+})
 
 
-
-
-
+run().catch(console.dir);
 
 
 app.listen(port, () => {
